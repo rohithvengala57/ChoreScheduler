@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "outDir": "./.seed-dist",
+    "target": "ES2017",
+    "paths": { "@/*": ["./*"] }
+  },
+  "include": ["scripts/**/*.ts", "lib/**/*.ts"]
+}
