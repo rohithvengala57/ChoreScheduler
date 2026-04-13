@@ -17,11 +17,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "householdId is required." }, { status: 400 });
     }
 
-    // Fetch household data
+    // Fetch household data — only use approved constraints
     const [people, tasks, constraints] = await Promise.all([
       Person.find({ householdId }).lean(),
       Task.find({ householdId }).lean(),
-      Constraint.find({ householdId }).lean(),
+      Constraint.find({ householdId, status: { $in: ["approved", undefined] } }).lean(),
     ]);
 
     if (people.length === 0) {

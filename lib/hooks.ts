@@ -27,10 +27,11 @@ export function useAsync<T>(
   return { run, loading, error };
 }
 
-export async function apiFetch<T>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function apiFetch<T = any>(
   path: string,
   options?: RequestInit
-): Promise<{ data?: T; error?: string; warnings?: string[] }> {
+): Promise<{ data: T; error?: string; warnings?: string[]; inviteLink?: string }> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
     ...options,

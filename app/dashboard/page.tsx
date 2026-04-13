@@ -1,299 +1,211 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 import {
-  Home,
-  Users,
-  ClipboardList,
-  ShieldCheck,
-  CalendarDays,
-  BarChart3,
-  Download,
-  LogOut,
-  Copy,
-  CheckCheck,
+  Users, ClipboardList, ShieldCheck, Calendar,
+  BarChart2, CheckSquare, Mail, LogOut, Home, Loader2,
 } from "lucide-react";
-import toast from "react-hot-toast";
-import type { IPerson, ITask, IConstraint, ISchedule } from "@/lib/types";
 import { apiFetch } from "@/lib/hooks";
+
 import PeopleManager from "@/components/PeopleManager";
 import TaskManager from "@/components/TaskManager";
 import ConstraintsManager from "@/components/ConstraintsManager";
 import ScheduleView from "@/components/ScheduleView";
 import EffortPoints from "@/components/EffortPoints";
 import ExportPanel from "@/components/ExportPanel";
+import InvitePanel from "@/components/InvitePanel";
+import ConstraintApprovalPanel from "@/components/ConstraintApprovalPanel";
+import TaskLogPanel from "@/components/TaskLogPanel";
+import PerformanceDashboard from "@/components/PerformanceDashboard";
+import type { IPerson, ITask, IConstraint, ISchedule } from "@/lib/types";
 
-type Tab = "people" | "tasks" | "constraints" | "schedule" | "points" | "export";
+interface AuthUser {
+  _id: string; name: string; email: string;
+  role: "admin" | "member"; status: string; householdId: string;
+}
+interface HouseholdInfo { name: string; code: string; }
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "people", label: "Roommates", icon: <Users size={16} /> },
-  { id: "tasks", label: "Tasks", icon: <ClipboardList size={16} /> },
-  { id: "constraints", label: "Constraints", icon: <ShieldCheck size={16} /> },
-  { id: "schedule", label: "Schedule", icon: <CalendarDays size={16} /> },
-  { id: "points", label: "Effort Points", icon: <BarChart3 size={16} /> },
-  { id: "export", label: "Export", icon: <Download size={16} /> },
-];
+const ADMIN_TABS = [
+  { id: "people",      label: "Roommates",  icon: <Users size={15} /> },
+  { id: "tasks",       label: "Tasks",       icon: <ClipboardList size={15} /> },
+  { id: "constraints", label: "Constraints", icon: <ShieldCheck size={15} /> },
+  { id: "approvals",   label: "Approvals",   icon: <ShieldCheck size={15} /> },
+  { id: "schedule",    label: "Schedule",    icon: <Calendar size={15} /> },
+  { id: "tasklog",     label: "Task Log",    icon: <CheckSquare size={15} /> },
+  { id: "performance", label: "Performance", icon: <BarChart2 size={15} /> },
+  { id: "invites",     label: "Invites",     icon: <Mail size={15} /> },
+] as const;
+
+const MEMBER_TABS = [
+  { id: "schedule",    label: "Schedule",   icon: <Calendar size={15} /> },
+  { id: "constraints", label: "Constraints",icon: <ShieldCheck size={15} /> },
+  { id: "tasklog",     label: "Task Log",   icon: <CheckSquare size={15} /> },
+  { id: "performance", label: "My Stats",   icon: <BarChart2 size={15} /> },
+] as const;
+
+type Tab = string;
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [householdId, setHouseholdId] = useState<string | null>(null);
-  const [householdName, setHouseholdName] = useState("");
-  const [householdCode, setHouseholdCode] = useState("");
-  const [activeTab, setActiveTab] = useState<Tab>("people");
-  const [codeCopied, setCodeCopied] = useState(false);
-
-  const [people, setPeople] = useState<IPerson[]>([]);
-  const [tasks, setTasks] = useState<ITask[]>([]);
+  const [user, setUser]         = useState<AuthUser | null>(null);
+  const [household, setHousehold] = useState<HouseholdInfo | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [tab, setTab]           = useState<Tab>("schedule");
+  const [people, setPeople]     = useState<IPerson[]>([]);
+  const [tasks, setTasks]       = useState<ITask[]>([]);
   const [constraints, setConstraints] = useState<IConstraint[]>([]);
   const [schedule, setSchedule] = useState<ISchedule | null>(null);
-  const [loadingData, setLoadingData] = useState(true);
+  const [schedLoading, setSchedLoading] = useState(false);
 
-  // ── Load household from localStorage ──────────────────────────────────
+  // auth check
   useEffect(() => {
-    const id = localStorage.getItem("householdId");
-    if (!id) { router.replace("/"); return; }
-    setHouseholdId(id);
-    setHouseholdName(localStorage.getItem("householdName") ?? "");
-    setHouseholdCode(localStorage.getItem("householdCode") ?? "");
+    apiFetch("/api/auth/me")
+      .then((r) => {
+        const u: AuthUser = r.data;
+        setUser(u);
+        setTab(u.role === "admin" ? "people" : "schedule");
+      })
+      .catch(() => router.push("/login"))
+      .finally(() => setAuthLoading(false));
   }, [router]);
 
-  // ── Fetch data ─────────────────────────────────────────────────────────
-  const fetchPeople = useCallback(async (id: string) => {
-    const res = await apiFetch<IPerson[]>(`/api/people?householdId=${id}`);
-    if (res.data) setPeople(res.data);
-  }, []);
-
-  const fetchTasks = useCallback(async (id: string) => {
-    const res = await apiFetch<ITask[]>(`/api/tasks?householdId=${id}`);
-    if (res.data) setTasks(res.data);
-  }, []);
-
-  const fetchConstraints = useCallback(async (id: string) => {
-    const res = await apiFetch<IConstraint[]>(`/api/constraints?householdId=${id}`);
-    if (res.data) setConstraints(res.data);
-  }, []);
-
-  const fetchSchedule = useCallback(async (id: string) => {
-    try {
-      const res = await apiFetch<ISchedule>(`/api/schedule/${id}`);
-      if (res.data) setSchedule(res.data);
-    } catch {
-      // no schedule yet — ignore
-    }
-  }, []);
-
-  const fetchAll = useCallback(
-    async (id: string) => {
-      setLoadingData(true);
-      try {
-        await Promise.all([
-          fetchPeople(id),
-          fetchTasks(id),
-          fetchConstraints(id),
-          fetchSchedule(id),
-        ]);
-      } finally {
-        setLoadingData(false);
-      }
-    },
-    [fetchPeople, fetchTasks, fetchConstraints, fetchSchedule]
-  );
+  const loadPeople      = useCallback(async (hid: string) => { const r = await apiFetch(`/api/people?householdId=${hid}`);      setPeople(r.data); }, []);
+  const loadTasks       = useCallback(async (hid: string) => { const r = await apiFetch(`/api/tasks?householdId=${hid}`);       setTasks(r.data); }, []);
+  const loadConstraints = useCallback(async (hid: string) => { const r = await apiFetch(`/api/constraints?householdId=${hid}`); setConstraints(r.data); }, []);
+  const loadSchedule    = useCallback(async (hid: string) => { try { const r = await apiFetch(`/api/schedule/${hid}`); setSchedule(r.data); } catch { setSchedule(null); } }, []);
+  const loadHousehold   = useCallback(async (hid: string) => { const r = await apiFetch(`/api/households/${hid}`); setHousehold(r.data); }, []);
 
   useEffect(() => {
-    if (householdId) fetchAll(householdId);
-  }, [householdId, fetchAll]);
+    if (!user?.householdId) return;
+    const hid = user.householdId;
+    loadHousehold(hid); loadPeople(hid); loadTasks(hid); loadConstraints(hid); loadSchedule(hid);
+  }, [user, loadHousehold, loadPeople, loadTasks, loadConstraints, loadSchedule]);
 
-  // ── Handlers ───────────────────────────────────────────────────────────
-  function copyCode() {
-    navigator.clipboard.writeText(householdCode).then(() => {
-      setCodeCopied(true);
-      toast.success("Code copied!");
-      setTimeout(() => setCodeCopied(false), 2000);
-    });
+  async function generateSchedule() {
+    if (!user?.householdId) return;
+    setSchedLoading(true);
+    try {
+      const r = await apiFetch("/api/schedule/generate", { method: "POST", body: JSON.stringify({ householdId: user.householdId }) });
+      setSchedule(r.data);
+      if (r.warnings?.length) toast(`⚠️ ${r.warnings.length} warning(s) — some slots unfilled`);
+      else toast.success("Schedule generated!");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Failed"); }
+    finally { setSchedLoading(false); }
   }
 
-  function leave() {
-    localStorage.removeItem("householdId");
-    localStorage.removeItem("householdName");
-    localStorage.removeItem("householdCode");
-    router.replace("/");
+  async function logout() {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
   }
 
-  function onPeopleChange() {
-    if (householdId) {
-      fetchPeople(householdId);
-      fetchConstraints(householdId); // constraints may change
-      toast.success("Roommate saved!");
-    }
-  }
+  if (authLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" size={32} /></div>;
+  if (!user) return null;
 
-  function onTasksChange() {
-    if (householdId) {
-      fetchTasks(householdId);
-      fetchConstraints(householdId);
-      toast.success("Task saved!");
-    }
-  }
-
-  function onConstraintsChange() {
-    if (householdId) {
-      fetchConstraints(householdId);
-      toast.success("Constraint saved!");
-    }
-  }
-
-  function onScheduleGenerated() {
-    if (householdId) {
-      fetchSchedule(householdId);
-      toast.success("Schedule generated!");
-    }
-  }
-
-  if (!householdId) return null;
+  const isAdmin = user.role === "admin";
+  const tabs = isAdmin ? ADMIN_TABS : MEMBER_TABS;
+  const hid = user.householdId;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <Home size={16} className="text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
-              {householdName}
-            </h1>
-            <button
-              onClick={copyCode}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition-colors"
-            >
-              Code: <span className="font-mono font-semibold">{householdCode}</span>
-              {codeCopied ? (
-                <CheckCheck size={12} className="text-green-500" />
-              ) : (
-                <Copy size={12} />
-              )}
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50">
+      <Toaster position="top-right" />
 
-        {/* Stats */}
-        <div className="hidden sm:flex items-center gap-4 text-sm text-gray-500">
-          <span>{people.length} roommates</span>
-          <span>·</span>
-          <span>{tasks.length} tasks</span>
-          <span>·</span>
-          <span>{constraints.length} constraints</span>
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-6xl mx-auto flex items-center gap-3">
+          <div className="bg-indigo-600 p-1.5 rounded-lg"><Home size={18} className="text-white" /></div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-gray-900 text-sm truncate">{household?.name ?? "Loading…"}</h1>
+            <p className="text-xs text-gray-400">
+              Code: <span className="font-mono font-semibold tracking-widest">{household?.code}</span>
+              {" · "}<span className={isAdmin ? "text-indigo-600" : "text-gray-500"}>{isAdmin ? "Admin" : "Member"}</span>
+              {" · "}{user.name}
+            </p>
+          </div>
+          <button onClick={logout} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50">
+            <LogOut size={14} /> Sign out
+          </button>
         </div>
-
-        <button
-          onClick={leave}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors"
-        >
-          <LogOut size={15} />
-          <span className="hidden sm:inline">Leave</span>
-        </button>
       </header>
 
-      {/* ── Tab bar ────────────────────────────────────────────────────── */}
-      <div className="bg-white border-b border-gray-200 px-4 sm:px-6 overflow-x-auto">
-        <div className="flex gap-1 min-w-max">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-indigo-600 text-indigo-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-              {tab.id === "people" && people.length > 0 && (
-                <span className="ml-1 text-xs bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5">
-                  {people.length}
-                </span>
-              )}
-              {tab.id === "tasks" && tasks.length > 0 && (
-                <span className="ml-1 text-xs bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5">
-                  {tasks.length}
-                </span>
-              )}
-              {tab.id === "constraints" && constraints.length > 0 && (
-                <span className="ml-1 text-xs bg-indigo-100 text-indigo-600 rounded-full px-1.5 py-0.5">
-                  {constraints.length}
-                </span>
-              )}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Tabs */}
+        <nav className="flex gap-1 overflow-x-auto pb-1 mb-6">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? "bg-indigo-600 text-white shadow-sm" : "text-gray-500 hover:bg-gray-100"}`}>
+              {t.icon} {t.label}
             </button>
           ))}
-        </div>
-      </div>
+        </nav>
 
-      {/* ── Main content ───────────────────────────────────────────────── */}
-      <main className="flex-1 px-4 sm:px-6 py-6 max-w-5xl mx-auto w-full">
-        {loadingData ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        {/* Content */}
+        {tab === "people" && isAdmin && (
+          <PeopleManager householdId={hid} people={people} onChange={() => loadPeople(hid)} />
+        )}
+
+        {tab === "tasks" && isAdmin && (
+          <TaskManager householdId={hid} tasks={tasks} onChange={() => loadTasks(hid)} />
+        )}
+
+        {tab === "constraints" && (
+          <ConstraintsManager householdId={hid} people={people} tasks={tasks} constraints={constraints} onChange={() => loadConstraints(hid)} />
+        )}
+
+        {tab === "approvals" && isAdmin && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Pending Constraint Approvals</h2>
+            <ConstraintApprovalPanel people={people} tasks={tasks} />
           </div>
-        ) : (
-          <div className="animate-fade-in">
-            {activeTab === "people" && (
-              <PeopleManager
-                householdId={householdId}
-                people={people}
-                onChange={onPeopleChange}
-              />
+        )}
+
+        {tab === "schedule" && (
+          <div className="space-y-4">
+            {isAdmin && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button onClick={generateSchedule} disabled={schedLoading}
+                  className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                  {schedLoading ? <Loader2 size={16} className="animate-spin" /> : <Calendar size={16} />}
+                  {schedule ? "Regenerate Schedule" : "Generate Schedule"}
+                </button>
+                {schedule && <ExportPanel schedule={schedule} householdId={hid} people={people} />}
+              </div>
             )}
-            {activeTab === "tasks" && (
-              <TaskManager
-                householdId={householdId}
-                tasks={tasks}
-                onChange={onTasksChange}
-              />
-            )}
-            {activeTab === "constraints" && (
-              <ConstraintsManager
-                householdId={householdId}
-                people={people}
-                tasks={tasks}
-                constraints={constraints}
-                onChange={onConstraintsChange}
-              />
-            )}
-            {activeTab === "schedule" && (
-              <ScheduleView
-                householdId={householdId}
-                schedule={schedule}
-                people={people}
-                tasks={tasks}
-                onGenerate={onScheduleGenerated}
-                onScheduleChange={setSchedule}
-              />
-            )}
-            {activeTab === "points" && (
-              <EffortPoints
-                schedule={schedule}
-                people={people}
-                tasks={tasks}
-              />
-            )}
-            {activeTab === "export" && (
-              <ExportPanel
-                schedule={schedule}
-                people={people}
-                householdId={householdId}
-              />
+            {schedule ? (
+              <>
+                <ScheduleView householdId={hid} schedule={schedule} people={people} tasks={tasks} onUpdate={() => loadSchedule(hid)} readOnly={!isAdmin} />
+                <EffortPoints schedule={schedule} people={people} tasks={tasks} />
+              </>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
+                {isAdmin ? 'Click "Generate Schedule" to create this week\'s plan.' : "The admin hasn't generated a schedule yet."}
+              </div>
             )}
           </div>
         )}
-      </main>
 
-      {/* ── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="py-4 text-center text-xs text-gray-400 border-t border-gray-200 bg-white">
-        Roommate Chore Scheduler — Fair scheduling for happy households
-      </footer>
+        {tab === "tasklog" && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Task Log</h2>
+            <TaskLogPanel householdId={hid} people={people} tasks={tasks} isAdmin={isAdmin} />
+          </div>
+        )}
+
+        {tab === "performance" && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">{isAdmin ? "Household Performance" : "My Stats"}</h2>
+            <PerformanceDashboard householdId={hid} />
+          </div>
+        )}
+
+        {tab === "invites" && isAdmin && (
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Member Invitations</h2>
+            <InvitePanel householdId={hid} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
