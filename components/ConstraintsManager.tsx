@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Trash2, ShieldCheck, Plus } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Trash2, Plus, Filter, X } from "lucide-react";
 import type { IConstraint, IPerson, ITask, ConstraintType, DayOfWeek } from "@/lib/types";
 import { DAYS_OF_WEEK } from "@/lib/types";
 import { apiFetch } from "@/lib/hooks";
@@ -54,6 +54,11 @@ export default function ConstraintsManager({ householdId, people, tasks, constra
   const [loading, setLoading] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonText, setJsonText] = useState("");
+
+  // ── Filter state ──────────────────────────────────────────────────────
+  const [filterType, setFilterType] = useState<ConstraintType | "">("");
+  const [filterPersonId, setFilterPersonId] = useState("");
+  const [filterDay, setFilterDay] = useState<DayOfWeek | "">("");
 
   const needsTask = form.type !== "day_off";
   const needsDay = form.type === "fixed" || form.type === "day_off";
@@ -149,6 +154,27 @@ export default function ConstraintsManager({ householdId, people, tasks, constra
   }
 
   const personMap = new Map(people.map((p) => [p._id, p]));
+
+  // ── Filtered constraints ──────────────────────────────────────────────
+  const filteredConstraints = useMemo(() => {
+    return constraints.filter((c) => {
+      if (filterType && c.type !== filterType) return false;
+      if (filterPersonId && c.personId !== filterPersonId) return false;
+      if (filterDay) {
+        // day_off stores day directly; others may or may not have a day
+        if (!c.day || c.day !== filterDay) return false;
+      }
+      return true;
+    });
+  }, [constraints, filterType, filterPersonId, filterDay]);
+
+  const hasFilters = !!(filterType || filterPersonId || filterDay);
+
+  function clearFilters() {
+    setFilterType("");
+    setFilterPersonId("");
+    setFilterDay("");
+  }
 
   return (
     <div className="space-y-6">
@@ -297,13 +323,104 @@ export default function ConstraintsManager({ householdId, people, tasks, constra
         </div>
       )}
 
-      {/* Constraints list */}
-      <div className="space-y-2">
-        <h3 className="font-semibold text-gray-700">Active Constraints ({constraints.length})</h3>
+      {/* ── Active Constraints ─────────────────────────────────────────── */}
+      <div className="space-y-3">
+        {/* Header row */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="font-semibold text-gray-700">
+            Active Constraints
+            <span className="ml-1.5 text-xs font-normal text-gray-400">
+              ({filteredConstraints.length}
+              {hasFilters ? ` of ${constraints.length}` : ""})
+            </span>
+          </h3>
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
+            >
+              <X size={12} />
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {/* Filter bar */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-wrap gap-2 items-center">
+          <Filter size={14} className="text-gray-400 flex-shrink-0" />
+
+          {/* Type filter */}
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as ConstraintType | "")}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            <option value="">All types</option>
+            {CONSTRAINT_TYPES.map((ct) => (
+              <option key={ct.value} value={ct.value}>{ct.label}</option>
+            ))}
+          </select>
+
+          {/* Person filter */}
+          <select
+            value={filterPersonId}
+            onChange={(e) => setFilterPersonId(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            <option value="">All people</option>
+            {people.map((p) => (
+              <option key={p._id} value={p._id}>{p.name}</option>
+            ))}
+          </select>
+
+          {/* Day filter */}
+          <select
+            value={filterDay}
+            onChange={(e) => setFilterDay(e.target.value as DayOfWeek | "")}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            <option value="">All days</option>
+            {DAYS_OF_WEEK.map((d) => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          {/* Active filter chips */}
+          <div className="flex flex-wrap gap-1 ml-auto">
+            {filterType && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_COLORS[filterType]}`}>
+                {filterType}
+                <button onClick={() => setFilterType("")} className="ml-1 opacity-60 hover:opacity-100">×</button>
+              </span>
+            )}
+            {filterPersonId && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex items-center gap-1"
+                style={{ background: personMap.get(filterPersonId)?.color ?? "#999" }}
+              >
+                {personMap.get(filterPersonId)?.name}
+                <button onClick={() => setFilterPersonId("")} className="opacity-70 hover:opacity-100">×</button>
+              </span>
+            )}
+            {filterDay && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700 font-medium flex items-center gap-1">
+                {filterDay}
+                <button onClick={() => setFilterDay("")} className="opacity-60 hover:opacity-100">×</button>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* List */}
         {constraints.length === 0 && (
           <p className="text-gray-400 text-sm text-center py-6">No constraints yet.</p>
         )}
-        {constraints.map((c) => {
+        {constraints.length > 0 && filteredConstraints.length === 0 && (
+          <p className="text-gray-400 text-sm text-center py-6">
+            No constraints match the active filters.
+          </p>
+        )}
+        {filteredConstraints.map((c) => {
           const person = personMap.get(c.personId);
           return (
             <div
@@ -319,7 +436,7 @@ export default function ConstraintsManager({ householdId, people, tasks, constra
               </span>
               <span className="text-sm text-gray-700 flex-1">{describeConstraint(c)}</span>
               {c.note && (
-                <span className="text-xs text-gray-400 italic">{c.note}</span>
+                <span className="text-xs text-gray-400 italic hidden sm:inline">{c.note}</span>
               )}
               <button
                 onClick={() => deleteConstraint(c._id)}
