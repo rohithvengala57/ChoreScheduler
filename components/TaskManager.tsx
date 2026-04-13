@@ -188,12 +188,15 @@ export default function TaskManager({ householdId, tasks, onChange }: Props) {
         {tasks.map((t) => (
           <div key={t._id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             {editId === t._id ? (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              /* ── Edit row: all inputs on a single line, no labels ── */
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Task name"
+                  title="Task name"
+                  className="flex-1 min-w-[120px] border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   autoFocus
                 />
                 <input
@@ -202,7 +205,9 @@ export default function TaskManager({ householdId, tasks, onChange }: Props) {
                   onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
                   min={0.1}
                   step={0.5}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="Weight"
+                  title="Effort weight"
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
                 <input
                   type="number"
@@ -210,19 +215,32 @@ export default function TaskManager({ householdId, tasks, onChange }: Props) {
                   onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
                   min={1}
                   max={7}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  placeholder="×/wk"
+                  title="Times per week (1–7)"
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
                 <select
                   value={editForm.timeOfDay}
                   onChange={(e) => setEditForm({ ...editForm, timeOfDay: e.target.value as TimeOfDay })}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  title="Time of day"
+                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
-                <div className="flex gap-2 sm:col-span-4">
-                  <button onClick={() => saveTask(t._id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"><Check size={16} /></button>
-                  <button onClick={() => setEditId(null)} className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg"><X size={16} /></button>
-                </div>
+                <button
+                  onClick={() => saveTask(t._id)}
+                  title="Save"
+                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg flex-shrink-0"
+                >
+                  <Check size={16} />
+                </button>
+                <button
+                  onClick={() => setEditId(null)}
+                  title="Cancel"
+                  className="p-1.5 text-gray-400 hover:bg-gray-50 rounded-lg flex-shrink-0"
+                >
+                  <X size={16} />
+                </button>
               </div>
             ) : (
               <div className="flex items-center gap-4 flex-wrap">
