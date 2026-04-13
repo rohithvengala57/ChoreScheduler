@@ -9,6 +9,8 @@ export interface ConstraintDoc extends Document {
   day?: DayOfWeek;
   value?: number;
   note?: string;
+  submittedBy?: mongoose.Types.ObjectId; // User._id
+  status: "approved" | "pending" | "rejected";
 }
 
 const ConstraintSchema = new Schema<ConstraintDoc>(
@@ -27,6 +29,8 @@ const ConstraintSchema = new Schema<ConstraintDoc>(
     },
     value: { type: Number },
     note: { type: String, trim: true },
+    submittedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    status: { type: String, enum: ["approved", "pending", "rejected"], default: "approved" },
   },
   { timestamps: true }
 );

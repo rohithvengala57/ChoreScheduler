@@ -11,8 +11,10 @@ interface Props {
   schedule: ISchedule | null;
   people: IPerson[];
   tasks: ITask[];
-  onGenerate: () => void;
-  onScheduleChange: (s: ISchedule) => void;
+  onGenerate?: () => void;
+  onScheduleChange?: (s: ISchedule) => void;
+  onUpdate?: () => void;   // alias for onScheduleChange (no-arg version)
+  readOnly?: boolean;
 }
 
 interface DragInfo {
@@ -28,6 +30,8 @@ export default function ScheduleView({
   tasks,
   onGenerate,
   onScheduleChange,
+  onUpdate,
+  readOnly = false,
 }: Props) {
   const [generating, setGenerating] = useState(false);
   const [editCell, setEditCell] = useState<{ day: string; taskId: string } | null>(null);
@@ -48,7 +52,7 @@ export default function ScheduleView({
         method: "POST",
         body: JSON.stringify({ householdId }),
       });
-      onGenerate();
+      onGenerate?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate schedule.");
     } finally {
@@ -75,7 +79,7 @@ export default function ScheduleView({
           taskWeights: buildTaskWeights(),
         }),
       });
-      if (res.data) onScheduleChange(res.data);
+      if (res.data) { onScheduleChange?.(res.data); onUpdate?.(); }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error updating assignment");
     } finally {
@@ -98,7 +102,7 @@ export default function ScheduleView({
           taskWeights: buildTaskWeights(),
         }),
       });
-      if (res.data) onScheduleChange(res.data);
+      if (res.data) { onScheduleChange?.(res.data); onUpdate?.(); }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error swapping assignments");
     }
@@ -190,14 +194,16 @@ export default function ScheduleView({
               Manually edited
             </span>
           )}
-          <button
-            onClick={generate}
-            disabled={generating}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw size={16} className={generating ? "animate-spin" : ""} />
-            {generating ? "Generating…" : schedule ? "Regenerate" : "Generate Schedule"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={generate}
+              disabled={generating}
+              className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw size={16} className={generating ? "animate-spin" : ""} />
+              {generating ? "Generating…" : schedule ? "Regenerate" : "Generate Schedule"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -235,13 +241,13 @@ export default function ScheduleView({
       {!schedule ? (
         <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
           <p className="text-gray-400 mb-4">No schedule generated yet.</p>
-          <button
+          {!readOnly && <button
             onClick={generate}
             disabled={generating}
             className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-indigo-700"
           >
             {generating ? "Generating…" : "Generate Schedule"}
-          </button>
+          </button>}
         </div>
       ) : (
         <>
@@ -317,10 +323,10 @@ export default function ScheduleView({
                             /* ── Draggable chip + click-to-edit ── */
                             <div className="flex items-center gap-1 group">
                               <div
-                                draggable
-                                onDragStart={(e) => onDragStart(day, taskId, personId, e)}
-                                onDragEnd={onDragEnd}
-                                className="cursor-grab active:cursor-grabbing"
+                                draggable={!readOnly}
+                                onDragStart={!readOnly ? (e) => onDragStart(day, taskId, personId, e) : undefined}
+                                onDragEnd={!readOnly ? onDragEnd : undefined}
+                                className={!readOnly ? "cursor-grab active:cursor-grabbing" : ""}
                               >
                                 {person ? (
                                   <span
