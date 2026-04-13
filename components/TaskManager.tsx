@@ -188,45 +188,53 @@ export default function TaskManager({ householdId, tasks, onChange }: Props) {
         {tasks.map((t) => (
           <div key={t._id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             {editId === t._id ? (
-              /* ── Edit row: all inputs on a single line, no labels ── */
+              /* ── Edit row: single line with inline prefix labels ── */
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {/* Name — self-evident */}
                 <input
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   placeholder="Task name"
-                  title="Task name"
                   className="flex-1 min-w-[120px] border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   autoFocus
                 />
-                <input
-                  type="number"
-                  value={editForm.weight}
-                  onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
-                  min={0.1}
-                  step={0.5}
-                  placeholder="Weight"
-                  title="Effort weight"
-                  className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
-                <input
-                  type="number"
-                  value={editForm.frequency}
-                  onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
-                  min={1}
-                  max={7}
-                  placeholder="×/wk"
-                  title="Times per week (1–7)"
-                  className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                />
+
+                {/* Weight — labelled inline */}
+                <div className="flex items-center gap-1 border border-gray-300 rounded-lg px-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-400 bg-white">
+                  <span className="text-xs text-gray-400 whitespace-nowrap select-none">wt</span>
+                  <input
+                    type="number"
+                    value={editForm.weight}
+                    onChange={(e) => setEditForm({ ...editForm, weight: e.target.value })}
+                    min={0.1}
+                    step={0.5}
+                    className="w-12 text-sm focus:outline-none"
+                  />
+                </div>
+
+                {/* Frequency — labelled inline */}
+                <div className="flex items-center gap-1 border border-gray-300 rounded-lg px-2 py-1.5 focus-within:ring-2 focus-within:ring-indigo-400 bg-white">
+                  <span className="text-xs text-gray-400 whitespace-nowrap select-none">×/wk</span>
+                  <input
+                    type="number"
+                    value={editForm.frequency}
+                    onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
+                    min={1}
+                    max={7}
+                    className="w-10 text-sm focus:outline-none"
+                  />
+                </div>
+
+                {/* Time of day — dropdown is self-labelling */}
                 <select
                   value={editForm.timeOfDay}
                   onChange={(e) => setEditForm({ ...editForm, timeOfDay: e.target.value as TimeOfDay })}
-                  title="Time of day"
-                  className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 >
                   {TIME_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+
                 <button
                   onClick={() => saveTask(t._id)}
                   title="Save"
